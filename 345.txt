@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>نموذج محول دولار إلى دينار + قاصة</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      max-width: 500px;
+      margin: 20px auto;
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px #ccc;
+    }
+    input, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      font-size: 16px;
+    }
+    .log {
+      background: #eee;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #333;
+    }
+    h2, h3 {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>محول الدولار إلى الدينار</h2>
+
+  <input type="email" id="email" placeholder="أدخل بريدك الإلكتروني" />
+
+  <input type="number" id="usdAmount" placeholder="المبلغ بالدولار" />
+  <button onclick="convert()">تحويل</button>
+
+  <h3>رصيد القاصة: <span id="cashboxBalance">0</span> دينار</h3>
+  <input type="number" id="addToCashbox" placeholder="أضف مبلغ إلى القاصة" />
+  <button onclick="addToCashbox()">إضافة إلى القاصة</button>
+
+  <div class="log" id="auditLog"></div>
+
+  <script>
+    const rate = 1320;
+    let cashbox = 0;
+
+    function convert() {
+      const email = document.getElementById('email').value.trim();
+      const usd = parseFloat(document.getElementById('usdAmount').value);
+      if (!email) {
+        alert('الرجاء إدخال البريد الإلكتروني.');
+        return;
+      }
+      if (isNaN(usd) || usd <= 0) {
+        alert('الرجاء إدخال مبلغ دولار صحيح.');
+        return;
+      }
+      const converted = usd * rate;
+      if (converted > cashbox) {
+        alert('رصيد القاصة غير كافٍ.');
+        return;
+      }
+      cashbox -= converted;
+      document.getElementById('cashboxBalance').textContent = cashbox.toLocaleString();
+      logAudit(`تم تحويل ${usd.toFixed(2)} دولار إلى ${converted.toFixed(2)} دينار وخصم من القاصة. (البريد: ${email})`);
+    }
+
+    function addToCashbox() {
+      const amount = parseFloat(document.getElementById('addToCashbox').value);
+      if (isNaN(amount) || amount <= 0) {
+        alert('الرجاء إدخال مبلغ صالح.');
+        return;
+      }
+      cashbox += amount;
+      document.getElementById('cashboxBalance').textContent = cashbox.toLocaleString();
+      logAudit(`تمت إضافة ${amount.toFixed(2)} دينار إلى القاصة.`);
+    }
+
+    function logAudit(text) {
+      const auditLog = document.getElementById('auditLog');
+      const time = new Date().toLocaleTimeString();
+      auditLog.innerHTML = `<div>[${time}] ${text}</div>` + auditLog.innerHTML;
+    }
+  </script>
+
+</body>
+</html>
