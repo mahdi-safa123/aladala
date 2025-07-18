@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8" />
+    <title>محول العملة مع قاصة، صادر/وارد وسجل تدقيق + طباعة</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #eef2f3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            direction: rtl;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            width: 400px;
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        input, select {
+            padding: 10px;
+            width: 90%;
+            margin-bottom: 10px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 15px;
+            margin: 5px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1976D2;
+        }
+        #result, #balance, #userEmailDisplay {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #222;
+            text-align: center;
+        }
+        #log {
+            margin-top: 20px;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 14px;
+            direction: rtl;
+        }
+        .log-item {
+            border-bottom: 1px dashed #ccc;
+            padding: 5px 0;
+        }
+        hr {
+            margin: 15px 0;
+        }
+        @media print {
+            body {
+                background: white;
+                height: auto;
+                direction: rtl;
+            }
+            .container {
+                box-shadow: none;
+                width: 100%;
+                max-height: none;
+                overflow: visible;
+                padding: 0;
+            }
+            button, input, select {
+                display: none !important;
+            }
+            #log {
+                max-height: none;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>💱 محول العملة + قاصة 💰</h2>
+
+    <input type="email" id="userEmail" placeholder="أدخل بريدك الإلكتروني" />
+    <button onclick="saveEmail()">📩 حفظ البريد</button>
+    <div id="userEmailDisplay"></div>
+
+    <hr>
+
+    <input type="number" id="walletAmount" placeholder="أدخل مبلغ (بالدولار)" />
+    <select id="transactionType">
+        <option value="وارد">وارد (إضافة للقاصة)</option>
+        <option value="صادر">صادر (خصم من القاصة)</option>
+    </select>
+    <button onclick="processTransaction()">تأكيد العملية</button>
+
+    <input type="number" id="usd" placeholder="المبلغ بالدولار للتحويل" />
+    <input type="number" id="rate" placeholder="سعر الصرف" value="1320" />
+    <button onclick="convertAndDeduct()">🔁 تحويل وخصم من القاصة</button>
+
+    <button onclick="resetWallet()" style="background-color: crimson;">♻️ تصفير القاصة</button>
+    <button onclick="printPage()" style="background-color: #4CAF50;">🖨️ طباعة السجل والقاصة</button>
+
+    <div id="result"></div>
+    <div id="balance">رصيد القاصة: 0 $</div>
+
+    <hr />
+    <h3>📋 سجل العمليات</h3>
+    <div id="log"></div>
+</div>
+
+<script>
+    let wallet = 0;
+    let log = [];
+
+    window.onload = function () {
+        const savedWallet = localStorage.getItem("wallet");
+        const savedLog = localStorage.getItem("log");
+        const savedEmail = localStorage.getItem("userEmail");
+
+        if (savedWallet) {
+            wallet = parseFloat(savedWallet);
+            updateBalance();
+        }
+
+        if (savedLog) {
+            log = JSON.parse(savedLog);
+            renderLog();
+        }
+
+        if (savedEmail) {
+            document.getElementById("userEmailDisplay").innerText = `👤 المستخدم: ${savedEmail}`;
+        }
+    };
+
+    function saveEmail() {
+        const email = document.getElementById("userEmail").value.trim();
+        if (email && email.includes("@")) {
+            localStorage.setItem("userEmail", email);
+            document.getElementById("userEmailDisplay").innerText = `👤 المستخدم: ${email}`;
+            document.getElementById("userEmail").value = '';
+        } else {
+            alert("❌ الرجاء إدخال بريد إلكتروني صالح.");
+        }
+    }
+
+    function processTransaction() {
+        const amount = parseFloat(document.getElementById("walletAmount").value);
+        const type = document.getElementById("transactionType").value;
+
+        if (isNaN(amount) || amount <= 0) {
+            alert("❌ أدخل مبلغًا صالحًا للعملية.");
+            return;
+        }
+
+        if (type === "وارد") {
+            wallet += amount;
+            updateBalance();
+            saveWallet();
+            addLog(`✅ عملية وارد: إضافة ${amount.toFixed(2)}$ للقاصة.`);
+            document.getElementById("result").innerText = `تم إضافة ${amount.toFixed(2)}$ للقاصة.`;
+        } else if (type === "صادر") {
+            if (amount <= wallet) {
+                wallet -= amount;
+                updateBalance();
+                saveWallet();
+                addLog(`✅ عملية صادر: خصم ${amount.toFixed(2)}$ من القاصة.`);
+                document.getElementById("result").innerText = `تم خصم ${amount.toFixed(2)}$ من القاصة.`;
+            } else {
+                document.getElementById("result").innerText = "❌ رصيد القاصة لا يكفي.";
+                addLog(`⚠️ فشل عملية صادر: الرصيد لا يكفي لخصم ${amount.toFixed(2)}$`);
+            }
+        }
+        document.getElementById("walletAmount").value = '';
+    }
+
+    function convertAndDeduct() {
+        const usd = parseFloat(document.getElementById("usd").value);
+        const rate = parseFloat(document.getElementById("rate").value);
+
+        if (isNaN(rate) || rate <= 0) {
+            alert("❌ أدخل سعر صرف صحيح.");
+            return;
+        }
+
+        if (!isNaN(usd) && usd > 0) {
+            if (usd <= wallet) {
+                const iqd = usd * rate;
+                wallet -= usd;
+                updateBalance();
+                saveWallet();
+                addLog(`💱 تحويل ${usd.toFixed(2)}$ = ${iqd.toFixed(0)} د.ع، وتم خصم المبلغ من القاصة.`);
+                document.getElementById("result").innerText = `تم التحويل: ${usd}$ = ${iqd} د.ع`;
+            } else {
+                document.getElementById("result").innerText = "❌ رصيد القاصة لا يكفي.";
+                addLog(`⚠️ فشل التحويل: الرصيد لا يكفي لتحويل ${usd}$`);
+            }
+        } else {
+            alert("❌ أدخل مبلغًا صالحًا للتحويل.");
+        }
+    }
+
+    function resetWallet() {
+        if (confirm("هل أنت متأكد من تصفير القاصة؟")) {
+            wallet = 0;
+            updateBalance();
+            saveWallet();
+            addLog("🗑️ تم تصفير القاصة.");
+            document.getElementById("result").innerText = "تم تصفير القاصة.";
+        }
+    }
+
+    function updateBalance() {
+        document.getElementById("balance").innerText = `رصيد القاصة: ${wallet.toFixed(2)} $`;
+    }
+
+    function addLog(entry) {
+        const timestamp = new Date().toLocaleString("ar-IQ");
+        const logEntry = `${timestamp} - ${entry}`;
+        log.unshift(logEntry);
+        renderLog();
+        localStorage.setItem("log", JSON.stringify(log));
+    }
+
+    function renderLog() {
+        const logDiv = document.getElementById("log");
+        logDiv.innerHTML = '';
+        log.slice(0, 50).forEach(item => {
+            const div = document.createElement("div");
+            div.className = "log-item";
+            div.textContent = item;
+            logDiv.appendChild(div);
+        });
+    }
+
+    function saveWallet() {
+        localStorage.setItem("wallet", wallet.toFixed(2));
+    }
+
+    function printPage() {
+        window.print();
+    }
+</script>
+</body>
+</html>
